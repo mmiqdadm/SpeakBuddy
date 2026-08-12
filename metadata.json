@@ -1,0 +1,6 @@
+{
+  "name": "SpeakBuddy AI",
+  "description": "Friendly real-time English speaking companion with auto-scoring, pronunciation feedback, and thematic topics for all ages.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
