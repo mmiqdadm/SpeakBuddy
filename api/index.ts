@@ -18,6 +18,27 @@ const ai = new GoogleGenAI({
   },
 });
 
+// Primary default model gemini-1.5-flash (Exact model used in Google AI Studio)
+async function generateGeminiContent(params: {
+  contents: any;
+  config?: any;
+}) {
+  try {
+    return await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
+      ...params,
+    });
+  } catch (err: any) {
+    if (err?.status === 404 || err?.message?.includes('404')) {
+      return await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        ...params,
+      });
+    }
+    throw err;
+  }
+}
+
 // In-Memory Translation Cache
 const translationCache = new Map<string, any>();
 
@@ -58,7 +79,7 @@ CONVERSATIONAL RULES FOR REAL FRIENDLIKE CHAT:
 
     const promptText = `
 Recent Chat History:
-${history.slice(-4).map((h: any) => `${h.sender === 'user' ? 'User' : 'Buddy'}: ${h.text}`).join('\n')}
+${history.slice(-6).map((h: any) => `${h.sender === 'user' ? 'User' : 'Buddy'}: ${h.text}`).join('\n')}
 
 Latest User Input: "${userInput}"
 Difficulty Level: ${difficulty}
@@ -67,8 +88,7 @@ Is Indonesian Help Request: ${isIndonesianHelp}
 Generates response strictly matching JSON schema.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const response = await generateGeminiContent({
       contents: promptText,
       config: {
         systemInstruction,
@@ -174,8 +194,7 @@ REQUIREMENTS: Casual life, NO roleplay scripts, warm intriguing initial message 
 Strict JSON.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const response = await generateGeminiContent({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -226,6 +245,7 @@ Strict JSON.
       const pick = cachedList[Math.floor(Math.random() * cachedList.length)];
       return res.json(pick);
     }
+
     return res.status(500).json({ error: 'Failed to generate random topic.' });
   }
 };
@@ -250,8 +270,7 @@ Provide primary natural English translation, casual alternative, phonetic guide,
 Return JSON.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const response = await generateGeminiContent({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
