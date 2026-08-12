@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="50%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="bubbleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#bgGrad)" filter="url(#shadow)" />
+
+  <!-- Outer Glow Ring -->
+  <circle cx="256" cy="256" r="230" fill="none" stroke="#6EE7B7" stroke-width="12" stroke-opacity="0.4" />
+
+  <!-- Friendly Buddy Face (Main Shape) -->
+  <rect x="116" y="126" width="280" height="230" rx="90" fill="#FFFFFF" filter="url(#shadow)" />
+
+  <!-- Headphone Band -->
+  <path d="M 126 210 A 150 150 0 0 1 386 210" fill="none" stroke="#F59E0B" stroke-width="24" stroke-linecap="round" />
+
+  <!-- Headphone Left Ear Cup -->
+  <rect x="96" y="190" width="36" height="70" rx="18" fill="#F59E0B" />
+  <rect x="118" y="200" width="16" height="50" rx="8" fill="#FDE68A" />
+
+  <!-- Headphone Right Ear Cup -->
+  <rect x="380" y="190" width="36" height="70" rx="18" fill="#F59E0B" />
+  <rect x="378" y="200" width="16" height="50" rx="8" fill="#FDE68A" />
+
+  <!-- Buddy Eyes -->
+  <circle cx="206" cy="220" r="22" fill="#0F172A" />
+  <circle cx="306" cy="220" r="22" fill="#0F172A" />
+
+  <!-- Eye Sparkles -->
+  <circle cx="213" cy="213" r="8" fill="#FFFFFF" />
+  <circle cx="313" cy="213" r="8" fill="#FFFFFF" />
+
+  <!-- Cute Rosy Cheeks -->
+  <ellipse cx="170" cy="250" rx="18" ry="10" fill="#FCA5A5" opacity="0.75" />
+  <ellipse cx="342" cy="250" rx="18" ry="10" fill="#FCA5A5" opacity="0.75" />
+
+  <!-- Big Happy Smile -->
+  <path d="M 216 250 Q 256 295 296 250" fill="none" stroke="#0F172A" stroke-width="14" stroke-linecap="round" />
+
+  <!-- Speech Bubble Accent (Top Right) -->
+  <g transform="translate(320, 70)">
+    <path d="M 20 50 Q 20 20 50 20 L 110 20 Q 140 20 140 50 L 140 80 Q 140 110 110 110 L 60 110 L 30 135 L 40 105 Q 20 95 20 50 Z" fill="url(#bubbleGrad)" filter="url(#shadow)" />
+    <!-- Sound Waves / Chat Lines in Bubble -->
+    <path d="M 50 55 L 110 55" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" />
+    <path d="M 60 75 L 100 75" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" />
+  </g>
+</svg>

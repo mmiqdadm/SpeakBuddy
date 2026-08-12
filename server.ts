@@ -17,17 +17,19 @@ const ai = new GoogleGenAI({
   apiKey: apiKey || '',
 });
 
-// Helper for Automatic Model Fallback
+// Helper for Automatic Model Fallback Prioritizing Generous Lite & Flash Models First
 async function generateGeminiContent(params: {
   contents: any;
   config?: any;
 }) {
+  // Prioritize most generous quota models (lite & latest pointers) first to prevent rate limits
   const candidateModels = [
-    'gemini-3.6-flash',
-    'gemini-3.5-flash',
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
     'gemini-flash-latest',
     'gemini-2.5-flash',
-    'gemini-1.5-flash',
+    'gemini-3.6-flash',
   ];
 
   let lastError: any = null;
@@ -42,11 +44,14 @@ async function generateGeminiContent(params: {
       lastError = err;
       if (
         err?.status === 404 ||
+        err?.status === 429 ||
         err?.message?.includes('404') ||
+        err?.message?.includes('429') ||
         err?.message?.includes('not found') ||
-        err?.message?.includes('NOT_FOUND')
+        err?.message?.includes('NOT_FOUND') ||
+        err?.message?.includes('RESOURCE_EXHAUSTED')
       ) {
-        console.warn(`Model ${model} returned 404, trying fallback...`);
+        console.warn(`Model ${model} limited/unavailable (${err?.status || 'error'}), switching to next model...`);
         continue;
       }
       throw err;
@@ -96,7 +101,7 @@ CORE RULES FOR CONVERSATION:
 
     const promptText = `
 Recent Conversation History:
-${history.slice(-6).map((h: any) => `${h.sender === 'user' ? 'User' : 'Buddy'}: ${h.text}`).join('\n')}
+${history.slice(-4).map((h: any) => `${h.sender === 'user' ? 'User' : 'Buddy'}: ${h.text}`).join('\n')}
 
 Latest User Input: "${userInput}"
 Difficulty: ${difficulty}
