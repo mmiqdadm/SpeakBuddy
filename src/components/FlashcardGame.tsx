@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   FLASHCARD_CATEGORIES,
@@ -80,13 +80,17 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
     ? selectedCategory.cards[currentIndex]
     : null;
 
-  // Filtered categories for search
-  const filteredCategories = FLASHCARD_CATEGORIES.filter(
-    (cat) =>
-      cat.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cat.titleIndonesian.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cat.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Memoized filtered categories for instant search responsiveness
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return FLASHCARD_CATEGORIES;
+    return FLASHCARD_CATEGORIES.filter(
+      (cat) =>
+        cat.title.toLowerCase().includes(q) ||
+        cat.titleIndonesian.toLowerCase().includes(q) ||
+        cat.description.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
 
   // Navigation handlers
   const handleNextCard = () => {

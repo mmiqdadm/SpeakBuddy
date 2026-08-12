@@ -1,14 +1,10 @@
 import express from 'express';
-import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
-
 app.use(express.json());
 
 // Initialize Gemini Client
@@ -22,8 +18,7 @@ const ai = new GoogleGenAI({
   },
 });
 
-// Endpoint: Process Chat Turn with Scoring and Evaluation
-app.post('/api/chat-turn', async (req, res) => {
+const handleChatTurn = async (req: express.Request, res: express.Response) => {
   try {
     const { userInput, difficulty = 'beginner', topic, history = [], isIndonesianHelp = false } = req.body;
 
@@ -144,10 +139,9 @@ Generates response strictly matching JSON schema.
       details: err.message || 'Unknown error',
     });
   }
-});
+};
 
-// Endpoint: Generate Random Custom Thematic Topic
-app.post('/api/generate-topic', async (req, res) => {
+const handleGenerateTopic = async (req: express.Request, res: express.Response) => {
   try {
     const { difficulty = 'beginner' } = req.body;
 
@@ -228,10 +222,9 @@ Return strict JSON matching schema.
     console.error('Error in /api/generate-topic:', err);
     return res.status(500).json({ error: 'Failed to generate random topic.' });
   }
-});
+};
 
-// Endpoint: Direct Translation / Sentence Builder Helper
-app.post('/api/translate-help', async (req, res) => {
+const handleTranslateHelp = async (req: express.Request, res: express.Response) => {
   try {
     const { textIndonesian, contextTopic = '' } = req.body;
 
@@ -270,27 +263,15 @@ Return JSON.
     console.error('Error in /api/translate-help:', err);
     return res.status(500).json({ error: 'Failed to fetch translation help.' });
   }
-});
+};
 
-// Start Express Server
-async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+app.post('/api/chat-turn', handleChatTurn);
+app.post('/chat-turn', handleChatTurn);
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SpeakBuddy AI server running on http://localhost:${PORT}`);
-  });
-}
+app.post('/api/generate-topic', handleGenerateTopic);
+app.post('/generate-topic', handleGenerateTopic);
 
-startServer();
+app.post('/api/translate-help', handleTranslateHelp);
+app.post('/translate-help', handleTranslateHelp);
+
+export default app;

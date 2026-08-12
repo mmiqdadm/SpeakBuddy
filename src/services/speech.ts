@@ -1,6 +1,20 @@
 import { VoiceSpeed, VoiceProfile } from '../types';
 import { VOICE_PROFILES } from '../data/voiceProfiles';
 
+/**
+ * Preload speech synthesis voices early so there is no audio delay when user clicks speak.
+ */
+export function preloadVoices(): void {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }
+}
+
 export function cleanTextForSpeech(text: string): string {
   if (!text) return '';
   return text

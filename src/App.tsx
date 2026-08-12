@@ -3,7 +3,7 @@ import { ChatMessage, DifficultyLevel, Topic, UserStats, VoiceSpeed, VoiceProfil
 import { DEFAULT_TOPICS } from './data/defaultTopics';
 import { VOICE_PROFILES } from './data/voiceProfiles';
 import { sendChatTurn, fetchRandomTopic } from './services/api';
-import { speakText, stopSpeaking } from './services/speech';
+import { speakText, stopSpeaking, preloadVoices } from './services/speech';
 
 import { Navbar } from './components/Navbar';
 import { TopicBanner } from './components/TopicBanner';
@@ -31,6 +31,11 @@ export default function App() {
   const [currentTopic, setCurrentTopic] = useState<Topic>(getRandomTopic);
   const [customTopics, setCustomTopics] = useState<Topic[]>([]);
   const [isLoadingNewTopic, setIsLoadingNewTopic] = useState(false);
+
+  // Preload speech voices on mount
+  useEffect(() => {
+    preloadVoices();
+  }, []);
 
   // Chat Messages State initialized with Buddy initial greeting
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
