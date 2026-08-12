@@ -22,7 +22,7 @@ const ai = new GoogleGenAI({
   },
 });
 
-// In-Memory Translation Cache (Saves 100% tokens for repeated queries)
+// In-Memory Translation Cache
 const translationCache = new Map<string, any>();
 
 // In-Memory Generated Topics Pool
@@ -38,35 +38,38 @@ app.post('/api/chat-turn', async (req, res) => {
     }
 
     const difficultyPrompts: Record<string, string> = {
-      starter: 'Super short (2-4 words) A0-A1 English. Very patient, cheerful, kid-friendly. Provide parenthetical Indonesian for key words.',
-      beginner: 'Simple clear A1-A2 English with short sentences. Cheerful, patient, and encouraging.',
-      intermediate: 'Natural B1 English with everyday idioms and moderate vocabulary.',
-      upper_intermediate: 'Fluent B2 English with expressive phrasal verbs and rich vocabulary.',
-      advanced: 'Native-level C1-C2 idiomatic English with sophisticated vocabulary.',
+      starter: 'Use super simple, very short (2-5 words) A0-A1 English. Be extremely warm, cheerful, kid-friendly. Include parenthetical Indonesian translations for key tricky words.',
+      beginner: 'Use simple, clear A1-A2 English with short sentences. Be enthusiastic, patient, and friendly. Ask simple follow-up questions.',
+      intermediate: 'Use natural everyday B1 English with relaxed idioms, fun commentary, and moderate vocabulary. Keep dialogue flowing like real friends.',
+      upper_intermediate: 'Use fluent B2 English with expressive phrasal verbs, humor, and rich natural expressions.',
+      advanced: 'Use native-level C1-C2 idiomatic English with nuanced vocabulary, witty commentary, and deep engaging questions.',
     };
 
     const targetDifficultyInstruction = difficultyPrompts[difficulty] || difficultyPrompts.beginner;
 
-    // Concise, Token-Efficient System Prompt (~200 tokens saved per call)
+    // Natural Best-Friend Persona Prompt (Endless Flowing Conversation)
     const systemInstruction = `
-You are "Buddy", a warm, empathetic AI English partner for learners.
-RULES:
-1. DIFFICULTY: ${targetDifficultyInstruction}
-2. TOPIC: ${topic?.title || 'Casual Chat'} (${topic?.description || 'Friendly chat'}).
-3. NO INTROS: Never say "Hello, I am Buddy". Jump straight into conversation.
-4. FLOW FIRST: Do not criticize broken English in reply. Keep conversation flowing smoothly.
-5. INDONESIAN HELP: If query is in Indonesian or isIndonesianHelp=true, answer kindly in Indonesian first ("Dalam bahasa Inggris: '...'"), explain simply, then ask a follow-up English question.
-6. EVALUATION: Evaluate "${userInput}". Give scores (0-100), short badge, positive feedback, and gentle corrections in polite Indonesian.
+You are "Buddy", a warm, witty, and empathetic best friend having a casual English conversation with the user.
+
+CONVERSATIONAL RULES FOR REAL FRIENDLIKE CHAT:
+1. TALK LIKE A REAL CLOSE FRIEND: Never sound like a teacher, robot, or language instructor. React authentically to what the user says with emotion, humor, or shared experience (e.g. "Oh no way!", "Haha I completely agree!", "Wait, really? That's awesome!").
+2. ENDLESS CONVERSATION FLOW: Always connect your reply directly to the exact details the user mentioned, share a mini thought or opinion of your own, and end with an intriguing, natural open-ended question that makes the user want to reply immediately.
+3. NEVER USE ROBOTIC TEMPLATES: Avoid generic repetitive phrases like "That sounds wonderful! Let's keep practicing!" or "What else would you like to share?". Be spontaneous, creative, and genuine.
+4. TARGET DIFFICULTY: ${targetDifficultyInstruction}
+5. CURRENT TOPIC: ${topic?.title || 'Casual Chat'} (${topic?.description || 'Friendly chat'}).
+6. INDONESIAN HELP & TRANSLATION: If the user asks in Indonesian or isIndonesianHelp=true, reply kindly in Indonesian first ("Dalam bahasa Inggris, kamu bisa bilang: '...'"), explain simply, then ask a friendly English question to continue.
+7. REAL-TIME EVALUATION: Evaluate "${userInput}". Give estimated scores (0-100), badge label, constructive feedback, and gentle corrections explained in friendly, polite Indonesian.
 `;
 
-    // History Truncated to Last 4 Messages (Saves ~35% input tokens)
     const promptText = `
-History:
+Recent Chat History:
 ${history.slice(-4).map((h: any) => `${h.sender === 'user' ? 'User' : 'Buddy'}: ${h.text}`).join('\n')}
 
-Input: "${userInput}"
-Difficulty: ${difficulty}
-IsIndonesianHelp: ${isIndonesianHelp}
+Latest User Input: "${userInput}"
+Difficulty Level: ${difficulty}
+Is Indonesian Help Request: ${isIndonesianHelp}
+
+Generates response strictly matching JSON schema.
 `;
 
     const response = await ai.models.generateContent({
@@ -80,20 +83,20 @@ IsIndonesianHelp: ${isIndonesianHelp}
           properties: {
             reply: {
               type: Type.STRING,
-              description: 'Buddy conversational response in English.',
+              description: 'Buddy natural best-friend response in English (or friendly Indonesian explanation if asked for help).',
             },
             replyIndonesianTranslation: {
               type: Type.STRING,
-              description: 'Indonesian summary/translation of reply.',
+              description: 'Indonesian summary/translation of Buddy reply.',
             },
             evaluation: {
               type: Type.OBJECT,
               properties: {
-                pronunciationScore: { type: Type.INTEGER },
-                grammarScore: { type: Type.INTEGER },
-                fluencyScore: { type: Type.INTEGER },
-                overallScore: { type: Type.INTEGER },
-                badgeLabel: { type: Type.STRING },
+                pronunciationScore: { type: Type.INTEGER, description: 'Estimated score 0-100.' },
+                grammarScore: { type: Type.INTEGER, description: 'Estimated score 0-100.' },
+                fluencyScore: { type: Type.INTEGER, description: 'Estimated score 0-100.' },
+                overallScore: { type: Type.INTEGER, description: 'Estimated overall score 0-100.' },
+                badgeLabel: { type: Type.STRING, description: 'Short badge e.g. "⭐ Super Natural!", "🌟 Great Flow!"' },
                 feedbackSummary: { type: Type.STRING },
                 feedbackIndonesian: { type: Type.STRING },
                 corrections: {
@@ -133,34 +136,21 @@ IsIndonesianHelp: ${isIndonesianHelp}
     return res.json(parsedData);
   } catch (err: any) {
     console.error('Error in /api/chat-turn:', err);
-    // Graceful 429 Rate Limit Fallback (Prevents app crash & informs user smoothly)
+
     if (err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED')) {
-      return res.json({
-        reply: "Buddy is taking a 10-second breather! ☕ While we wait, review your last vocabulary words or speak a card out loud! ⭐",
-        replyIndonesianTranslation: "Buddy sedang istirahat sejenak 10 detik! ☕ Sambil menunggu, ayo ulas kosakata terakhirmu! ⭐",
-        evaluation: {
-          pronunciationScore: 95,
-          grammarScore: 95,
-          fluencyScore: 95,
-          overallScore: 95,
-          badgeLabel: "⭐ Great Energy!",
-          feedbackSummary: "Great practice momentum! Taking a quick 10s breather.",
-          feedbackIndonesian: "Semangat latihan yang luar biasa! Mari istirahat sejenak.",
-          corrections: [],
-          betterAlternatives: [],
-          keyVocabularyUsed: []
-        }
+      return res.status(429).json({
+        error: 'Rate limit reached. Please wait a few seconds before sending another message.',
       });
     }
 
     return res.status(500).json({
-      error: 'Failed to process conversation turn.',
-      details: err.message || 'Unknown error',
+      error: err?.message || 'Failed to process conversation turn.',
+      details: err?.message || 'Unknown error',
     });
   }
 });
 
-// Endpoint: Generate Random Custom Thematic Topic with Pool Caching
+// Endpoint: Generate Random Custom Thematic Topic
 app.post('/api/generate-topic', async (req, res) => {
   try {
     const { difficulty = 'beginner' } = req.body;
@@ -184,9 +174,9 @@ app.post('/api/generate-topic', async (req, res) => {
     const randomSeed = Math.floor(Math.random() * 1000000);
 
     const prompt = `
-Generate a fresh everyday conversation topic for English learners.
+Generate a fresh, engaging everyday conversation topic for English learners.
 Seed: ${randomSeed}, Difficulty: ${difficulty}, Category: ${randomCategory}.
-REQUIREMENTS: Casual life, NO rigid roleplay, intriguing warm initial message in English without self-introduction.
+REQUIREMENTS: Casual life, NO roleplay scripts, warm intriguing initial message from Buddy asking a friendly question without self-introduction.
 Strict JSON.
 `;
 
@@ -229,8 +219,7 @@ Strict JSON.
     });
 
     const parsedTopic = JSON.parse(response.text || '{}');
-    
-    // Save generated topic to pool
+
     if (!topicCache.has(difficulty)) topicCache.set(difficulty, []);
     const list = topicCache.get(difficulty)!;
     list.push(parsedTopic);
@@ -238,7 +227,6 @@ Strict JSON.
     return res.json(parsedTopic);
   } catch (err: any) {
     console.error('Error in /api/generate-topic:', err);
-    // If rate limited, pick a cached or fallback topic
     const cachedList = topicCache.get(req.body?.difficulty || 'beginner') || [];
     if (cachedList.length > 0) {
       const pick = cachedList[Math.floor(Math.random() * cachedList.length)];
@@ -249,7 +237,7 @@ Strict JSON.
   }
 });
 
-// Endpoint: Direct Translation / Sentence Builder Helper with In-Memory Caching
+// Endpoint: Direct Translation / Sentence Builder Helper
 app.post('/api/translate-help', async (req, res) => {
   try {
     const { textIndonesian, contextTopic = '' } = req.body;
@@ -258,7 +246,6 @@ app.post('/api/translate-help', async (req, res) => {
       return res.status(400).json({ error: 'Indonesian text is required.' });
     }
 
-    // Check In-Memory Cache (0 Tokens, 0ms Latency)
     const cacheKey = (textIndonesian as string).toLowerCase().trim();
     if (translationCache.has(cacheKey)) {
       return res.json(translationCache.get(cacheKey));
@@ -266,8 +253,8 @@ app.post('/api/translate-help', async (req, res) => {
 
     const prompt = `
 Translate and explain in English: "${textIndonesian}".
-Topic: "${contextTopic}".
-Provide primary English translation, optional alternative, pronunciation guide, and short Indonesian tip.
+Topic context: "${contextTopic}".
+Provide primary natural English translation, casual alternative, phonetic guide, and brief Indonesian tip.
 Return JSON.
 `;
 
@@ -291,7 +278,6 @@ Return JSON.
 
     const resultData = JSON.parse(response.text || '{}');
 
-    // Save to Cache (Limit max 200 items to prevent RAM growth)
     if (translationCache.size > 200) {
       const firstKey = translationCache.keys().next().value;
       if (firstKey) translationCache.delete(firstKey);
