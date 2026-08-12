@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   FLASHCARD_CATEGORIES,
   FlashcardCategory,
@@ -12,18 +12,12 @@ import {
   Volume2,
   Mic,
   MicOff,
-  HelpCircle,
   ArrowRight,
   ArrowLeft,
   Shuffle,
   Grid,
-  CheckCircle2,
-  AlertCircle,
   Search,
   Sparkles,
-  Award,
-  ChevronRight,
-  RefreshCcw,
 } from 'lucide-react';
 
 interface FlashcardGameProps {
@@ -38,7 +32,6 @@ type GameMode = 'repeat' | 'guess';
 export const FlashcardGame: React.FC<FlashcardGameProps> = ({
   voiceSpeed,
   selectedVoice,
-  stats,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<FlashcardCategory | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('repeat');
@@ -50,7 +43,7 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
   const [spokenTranscript, setSpokenTranscript] = useState('');
   const [micError, setMicError] = useState<string | null>(null);
 
-  // Pronunciation Evaluation State (Zero XP / Stars)
+  // Pronunciation Evaluation State
   const [pronunciationResult, setPronunciationResult] = useState<{
     accuracyScore: number;
     statusLabel: string;
@@ -70,9 +63,7 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
   } | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
-  const [showHint, setShowHint] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [imageError, setImageError] = useState(false);
 
   const recognitionRef = useRef<any>(null);
 
@@ -92,8 +83,6 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
   const handleNextCard = () => {
     stopSpeaking();
     setIsRevealed(false);
-    setShowHint(false);
-    setImageError(false);
     setPronunciationResult(null);
     setGuessResult(null);
     setSpokenTranscript('');
@@ -107,8 +96,6 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
   const handlePrevCard = () => {
     stopSpeaking();
     setIsRevealed(false);
-    setShowHint(false);
-    setImageError(false);
     setPronunciationResult(null);
     setGuessResult(null);
     setSpokenTranscript('');
@@ -124,8 +111,6 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
   const handleRandomCard = () => {
     stopSpeaking();
     setIsRevealed(false);
-    setShowHint(false);
-    setImageError(false);
     setPronunciationResult(null);
     setGuessResult(null);
     setSpokenTranscript('');
@@ -148,25 +133,62 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
     speakText(target, voiceSpeed, selectedVoice);
     setTimeout(() => {
       setIsPlayingAudio(false);
-    }, 1600);
+    }, 1200);
   };
 
-  // Speech Recognition
-  const handleStartMic = () => {
-    setMicError(null);
+  const handleSelectCategory = (category: FlashcardCategory) => {
+    setSelectedCategory(category);
+    setCurrentIndex(0);
+    setIsRevealed(false);
+    setPronunciationResult(null);
+    setGuessResult(null);
     setSpokenTranscript('');
+    setMicError(null);
+  };
+
+  const handleBackToCategories = () => {
+    stopSpeaking();
+    setSelectedCategory(null);
+  };
+
+  const handleStartSpeech = () => {
+    if (!activeCard) return;
+    setMicError(null);
+    setPronunciationResult(null);
+    setGuessResult(null);
 
     const rec = createSpeechRecognition(
-      (transcript, isFinal) => {
+      (transcript: string) => {
         setSpokenTranscript(transcript);
-        if (isFinal && transcript.trim()) {
-          evaluatePronunciation(transcript.trim());
+        const targetWord = activeCard.word.toLowerCase().trim();
+        const userSpoken = transcript.toLowerCase().trim();
+
+        if (gameMode === 'repeat') {
+          const isMatch = userSpoken.includes(targetWord) || targetWord.includes(userSpoken);
+          const accuracy = isMatch ? 95 : 60;
+          setPronunciationResult({
+            accuracyScore: accuracy,
+            statusLabel: isMatch ? 'Great Pronunciation! ⭐' : 'Try Again!',
+            statusColor: isMatch ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-amber-600 bg-amber-50 border-amber-200',
+            feedbackMessage: isMatch ? `Pengucapan "${transcript}" sangat bagus!` : `Kedengaran seperti "${transcript}". Coba ulangi "${activeCard.word}".`,
+            spokenText: transcript,
+            phoneticTip: activeCard.phonetic || '',
+          });
+        } else {
+          const isCorrect = userSpoken.includes(targetWord) || targetWord.includes(userSpoken);
+          setIsRevealed(true);
+          setGuessResult({
+            isCorrect,
+            accuracyScore: isCorrect ? 100 : 50,
+            message: isCorrect ? 'Tepat Sekali! 🎉' : `Jawaban tepatnya adalah "${activeCard.word}".`,
+            spokenWord: transcript,
+            phoneticTip: activeCard.phonetic || '',
+          });
         }
       },
-      (err) => {
-        console.warn('Flashcard Mic error:', err);
-        setMicError('Izin mikrofon diperlukan untuk menilai pelafalan suaramu.');
+      (error: string) => {
         setIsListening(false);
+        setMicError(`Mikrofon error: ${error || 'Silakan coba lagi.'}`);
       },
       () => {
         setIsListening(false);
@@ -175,576 +197,239 @@ export const FlashcardGame: React.FC<FlashcardGameProps> = ({
     );
 
     if (!rec) {
-      setMicError('Browser tidak mendukung perekaman suara langsung.');
+      setMicError('Browser tidak mendukung Speech Recognition.');
       return;
     }
 
     recognitionRef.current = rec;
-    try {
-      rec.start();
-      setIsListening(true);
-    } catch (e) {
-      setIsListening(false);
-    }
+    setIsListening(true);
+    setSpokenTranscript('Mendengarkan...');
+    rec.start();
   };
 
-  const handleStopMic = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    setIsListening(false);
-  };
-
-  // Evaluate user pronunciation (Articulation & Clarity - No XP/Stars)
-  const evaluatePronunciation = (transcript: string) => {
-    if (!activeCard) return;
-
-    const cleanSpoken = transcript.toLowerCase().trim();
-    const cleanTarget = activeCard.word.toLowerCase().trim();
-
-    let accuracyScore = 0;
-    if (cleanSpoken === cleanTarget) {
-      accuracyScore = 98;
-    } else if (cleanSpoken.includes(cleanTarget) || cleanTarget.includes(cleanSpoken)) {
-      accuracyScore = 85;
-    } else {
-      const targetWords = cleanTarget.split(' ');
-      const spokenWords = cleanSpoken.split(' ');
-      let matches = 0;
-      targetWords.forEach((tw) => {
-        if (spokenWords.some((sw) => sw.includes(tw) || tw.includes(sw))) {
-          matches++;
-        }
-      });
-      accuracyScore = Math.round((matches / targetWords.length) * 80);
-      if (accuracyScore === 0 && cleanSpoken.length > 0) accuracyScore = 55;
-    }
-
-    // Pronunciation Status & Articulation Tip
-    let statusLabel = 'Perlu Latihan Artikulas';
-    let statusColor = 'bg-amber-100 text-amber-800 border-amber-200';
-    let feedbackMessage = 'Perhatikan penekanan bunyi huruf pada kata ini.';
-    let phoneticTip = `Cara baca: ${activeCard.phonetic}. Coba ucapkan pelan-pelan & jelas.`;
-
-    if (accuracyScore >= 90) {
-      statusLabel = '🟢 Sangat Fasih & Jelas!';
-      statusColor = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      feedbackMessage = 'Luar biasa! Pelafalan dan intonasimu sangat tepat mirip penutur asli.';
-      phoneticTip = `Pelafalan '${activeCard.word}' (${activeCard.phonetic}) sudah sangat sempurna!`;
-    } else if (accuracyScore >= 70) {
-      statusLabel = '🟡 Pelafalan Cukup Bagus';
-      statusColor = 'bg-sky-100 text-sky-800 border-sky-200';
-      feedbackMessage = 'Pengucapanmu sudah cukup jelas dan dapat dipahami dengan baik.';
-      phoneticTip = `Fokus pada artikulasi bunyi '${activeCard.word[0]}' dan akhiran kata.`;
-    }
-
-    if (gameMode === 'repeat') {
-      setPronunciationResult({
-        accuracyScore,
-        statusLabel,
-        statusColor,
-        feedbackMessage,
-        spokenText: transcript,
-        phoneticTip,
-      });
-
-      if (accuracyScore >= 80) {
-        speakText('Great pronunciation!', voiceSpeed, selectedVoice);
-      }
-    } else {
-      // Guess mode evaluation
-      const isCorrectGuess =
-        accuracyScore >= 70 ||
-        cleanSpoken === cleanTarget ||
-        cleanSpoken.includes(cleanTarget);
-
-      if (isCorrectGuess) {
-        setIsRevealed(true);
-        setGuessResult({
-          isCorrect: true,
-          accuracyScore: Math.max(accuracyScore, 90),
-          message: `TEPAT SEKALI! Kata ini adalah '${activeCard.word}'.`,
-          spokenWord: transcript,
-          phoneticTip: `Pelafalanmu tepat (${activeCard.phonetic}).`,
-        });
-        speakText(`Correct! It is ${activeCard.word}!`, voiceSpeed, selectedVoice);
-      } else {
-        setGuessResult({
-          isCorrect: false,
-          accuracyScore,
-          message: `Terdeteksi: "${transcript}". Coba sebutkan kata dalam Bahasa Inggris lagi ya!`,
-          spokenWord: transcript,
-          phoneticTip: `Petunjuk: '${activeCard.word}' (${activeCard.phonetic})`,
-        });
-      }
-    }
-  };
-
-  // 1. Simpler & Compact Category Selection Menu
+  // Category Selection View
   if (!selectedCategory) {
     return (
-      <div className="max-w-4xl mx-auto w-full px-3 py-4 sm:p-5 space-y-4">
-        {/* Header Title & Compact Search Input */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h3 className="text-base sm:text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                <Grid className="w-5 h-5 text-emerald-600" />
-                <span>Pilih Tema Flashcard</span>
-              </h3>
-              <p className="text-xs text-slate-500 font-medium">
-                Pilih tema kosakata untuk melatih pelafalan & memori kata
-              </p>
-            </div>
-
-            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full self-start sm:self-auto border border-slate-200/60">
-              {FLASHCARD_CATEGORIES.length} Kategori Tersedia
-            </span>
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-100 text-amber-800 font-semibold text-sm mb-3">
+            <Sparkles className="w-4 h-4 text-amber-600" />
+            Kartu Kosakata Interaktif
           </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Pilih Kategori Kosakata 📚
+          </h1>
+          <p className="text-slate-600 mt-2 text-base max-w-xl mx-auto">
+            Pelajari ratusan kata bahasa Inggris lengkap dengan suara pengucapan asli dan latihan pelafalan.
+          </p>
 
-          {/* Quick Search Bar */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          {/* Search Bar */}
+          <div className="mt-6 max-w-md mx-auto relative">
+            <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari tema kosakata (misal: Hewan, Makanan, Profesi)..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              placeholder="Cari kategori (misal: Hewan, Makanan, Rumahan)..."
+              className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border border-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-slate-800 text-sm placeholder:text-slate-400"
             />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="text-xs text-slate-400 hover:text-slate-600 absolute right-3 top-1/2 -translate-y-1/2 font-bold cursor-pointer"
-              >
-                Reset
-              </button>
-            )}
           </div>
         </div>
 
-        {/* Compact Categories Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {/* Categories Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {filteredCategories.map((cat) => (
-            <motion.button
+            <motion.div
               key={cat.id}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                setSelectedCategory(cat);
-                setCurrentIndex(0);
-                setIsRevealed(false);
-                setImageError(false);
-                setPronunciationResult(null);
-                setGuessResult(null);
-              }}
-              className="bg-white border border-slate-200/90 hover:border-emerald-400 hover:shadow-xs rounded-2xl p-3.5 text-left transition-all flex items-center justify-between gap-3 cursor-pointer group"
+              whileHover={{ scale: 1.04, y: -4 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => handleSelectCategory(cat)}
+              className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 hover:shadow-md hover:border-amber-400 cursor-pointer flex flex-col items-center text-center transition-all group"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                {/* Category Icon Badge */}
-                <div className="w-11 h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-2xl shrink-0 group-hover:scale-105 transition-transform">
-                  {cat.icon}
-                </div>
-
-                <div className="min-w-0">
-                  <h4 className="font-extrabold text-slate-800 text-sm truncate group-hover:text-emerald-600 transition-colors">
-                    {cat.titleIndonesian}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 font-medium truncate">
-                    {cat.cards.length} Kata • {cat.cards[0]?.word}, {cat.cards[1]?.word}...
-                  </p>
-                </div>
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center text-3xl mb-3 shadow-inner transition-colors">
+                {cat.icon}
               </div>
-
-              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all shrink-0" />
-            </motion.button>
+              <h3 className="font-bold text-slate-900 text-base leading-snug group-hover:text-amber-600 transition-colors">
+                {cat.title}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                {cat.titleIndonesian}
+              </p>
+              <span className="mt-3 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold">
+                {cat.cards.length} Kata
+              </span>
+            </motion.div>
           ))}
         </div>
-
-        {filteredCategories.length === 0 && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-xs text-slate-500 font-medium">
-            Tidak ada tema kosakata yang cocok dengan "{searchQuery}".
-          </div>
-        )}
       </div>
     );
   }
 
-  // 2. Active Game Arena View
+  // Active Flashcard Game View
   return (
-    <div className="max-w-2xl mx-auto w-full px-3 py-3 sm:p-4 flex flex-col space-y-3">
-      {/* Top Controls Bar (Fully Responsive & Wrap Cleanly on Mobile) */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-2.5 sm:p-3 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-        {/* Left: Change Theme & Title */}
-        <div className="flex items-center justify-between sm:justify-start gap-2">
-          <button
-            onClick={() => {
-              stopSpeaking();
-              setSelectedCategory(null);
-            }}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Ganti Tema</span>
-          </button>
+    <div className="max-w-3xl mx-auto px-4 py-6">
+      {/* Top Controls Header */}
+      <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <button
+          onClick={handleBackToCategories}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-slate-700 hover:bg-slate-100 font-medium text-sm transition-colors"
+        >
+          <Grid className="w-4 h-4 text-slate-500" />
+          Kategori
+        </button>
 
-          <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
+        <div className="text-center">
+          <div className="flex items-center justify-center gap-1.5 font-bold text-slate-900 text-base">
             <span>{selectedCategory.icon}</span>
-            <span className="truncate max-w-[130px] sm:max-w-none">
-              {selectedCategory.titleIndonesian}
-            </span>
-            <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-              {currentIndex + 1}/{selectedCategory.cards.length}
-            </span>
+            <span>{selectedCategory.title}</span>
           </div>
+          <p className="text-xs text-slate-500 font-medium">
+            Kartu {currentIndex + 1} dari {selectedCategory.cards.length}
+          </p>
         </div>
 
-        {/* Right: Mode Switcher Pills */}
-        <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200/50 justify-center">
+        {/* Mode Toggle */}
+        <div className="flex bg-slate-100 p-1 rounded-xl">
           <button
-            onClick={() => {
-              setGameMode('repeat');
-              setIsRevealed(false);
-              setImageError(false);
-              setPronunciationResult(null);
-              setGuessResult(null);
-            }}
-            className={`flex-1 sm:flex-none px-3 py-1 rounded-lg transition-all cursor-pointer ${
+            onClick={() => setGameMode('repeat')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               gameMode === 'repeat'
-                ? 'bg-emerald-500 text-white shadow-2xs'
+                ? 'bg-white text-amber-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            🎧 Dengar & Ulangi
+            Ulangi 🗣️
           </button>
           <button
             onClick={() => {
               setGameMode('guess');
               setIsRevealed(false);
-              setImageError(false);
-              setPronunciationResult(null);
-              setGuessResult(null);
             }}
-            className={`flex-1 sm:flex-none px-3 py-1 rounded-lg transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               gameMode === 'guess'
-                ? 'bg-amber-500 text-white shadow-2xs'
+                ? 'bg-white text-indigo-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            🧩 Tebak Kata
+            Tebak ❓
           </button>
         </div>
       </div>
 
-      {/* Main Flashcard Arena */}
+      {/* Main Flashcard Display Card */}
       {activeCard && (
-        <div className="flex flex-col items-center">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeCard.id + gameMode + currentIndex}
-              initial={{ scale: 0.96, opacity: 0, y: 6 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
-              className="w-full bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-7 shadow-sm relative overflow-hidden flex flex-col items-center text-center space-y-4"
-            >
-              {/* Category Tag Header */}
-              <span className="text-[10px] font-extrabold tracking-wider uppercase text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200/60">
-                {activeCard.category}
-              </span>
+        <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-200 flex flex-col items-center text-center relative overflow-hidden">
+          {/* Card Illustration */}
+          <FlashcardIllustration
+            card={activeCard}
+            gameMode={gameMode}
+            isRevealed={isRevealed}
+            onImageClick={() => handlePlayWordAudio()}
+          />
 
-              {/* Soft, Eye-Friendly Image Display Frame */}
-              <FlashcardIllustration
-                card={activeCard}
-                gameMode={gameMode}
-                isRevealed={isRevealed}
-                onImageClick={handlePlayWordAudio}
-              />
-
-              {/* Mode 1: Listen & Repeat View */}
-              {gameMode === 'repeat' && (
-                <div className="w-full space-y-3">
-                  <div className="flex items-center justify-center gap-2">
-                    <h3 className="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight">
-                      {activeCard.word}
-                    </h3>
-                    <button
-                      onClick={() => handlePlayWordAudio()}
-                      className={`p-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-all cursor-pointer ${
-                        isPlayingAudio ? 'ring-4 ring-emerald-200 scale-105' : ''
-                      }`}
-                      title="Dengarkan Suara"
-                    >
-                      <Volume2 className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
-                    <span className="bg-slate-100 px-2.5 py-1 rounded-md font-mono text-slate-600">
-                      {activeCard.phonetic}
-                    </span>
-                    <span>•</span>
-                    <span className="text-emerald-700 font-extrabold text-sm">
-                      {activeCard.translation}
-                    </span>
-                  </div>
-
-                  {/* Example Sentence Box */}
-                  <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl text-left text-xs space-y-0.5">
-                    <p className="font-bold text-slate-700">
-                      💡 "{activeCard.exampleSentence}"
-                    </p>
-                    <p className="text-slate-500 italic">
-                      "{activeCard.exampleTranslation}"
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Mode 2: Guess the Word View */}
-              {gameMode === 'guess' && (
-                <div className="w-full space-y-3">
-                  {isRevealed ? (
-                    <motion.div
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="space-y-1"
-                    >
-                      <span className="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-3 py-0.5 rounded-full inline-block">
-                        🎉 Jawaban Tepat!
-                      </span>
-                      <h3 className="text-3xl sm:text-4xl font-black text-slate-800">
-                        {activeCard.word}
-                      </h3>
-                      <p className="text-xs font-bold text-emerald-600">
-                        ({activeCard.translation})
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <div className="space-y-3">
-                      {/* Masked Letter Slots */}
-                      <div className="flex items-center justify-center gap-1.5 py-1">
-                        {activeCard.word.split('').map((char, i) => (
-                          <span
-                            key={i}
-                            className={`w-8 h-10 sm:w-10 sm:h-12 border-2 border-slate-200 bg-slate-50 rounded-xl flex items-center justify-center text-xl font-black text-slate-800 shadow-2xs ${
-                              char === ' ' ? 'border-transparent bg-transparent w-3' : ''
-                            }`}
-                          >
-                            {showHint && i === 0 ? char : '?'}
-                          </span>
-                        ))}
-                      </div>
-
-                      <p className="text-xs font-semibold text-slate-500">
-                        Sebutkan nama kata pada gambar dalam Bahasa Inggris!
-                      </p>
-
-                      {/* Hint Toggle */}
-                      <div>
-                        {showHint ? (
-                          <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-2xl text-xs text-amber-900 font-medium text-left">
-                            💡 <strong>Petunjuk:</strong> {activeCard.hint} (Huruf depan: '{activeCard.word[0]}')
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setShowHint(true)}
-                            className="text-xs text-amber-600 hover:text-amber-800 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
-                          >
-                            <HelpCircle className="w-3.5 h-3.5" />
-                            <span>Butuh Petunjuk / Clue?</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Mic Listening Live Bar */}
-              {isListening && (
-                <div className="w-full p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center gap-3 animate-pulse">
-                  <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
-                  <div className="flex-1 text-left min-w-0">
-                    <span className="text-xs font-bold block">Mendengarkan suaramu... 🎧</span>
-                    <p className="text-xs font-medium italic truncate">
-                      {spokenTranscript || 'Ucapkan kata sekarang...'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleStopMic}
-                    className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 cursor-pointer"
-                  >
-                    Selesai 🛑
-                  </button>
-                </div>
-              )}
-
-              {/* Pronunciation & Articulation Result Box (Clean, No XP / Stars) */}
-              {pronunciationResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2.5"
+          {/* Word Text Display */}
+          <div className="mt-4 mb-2">
+            {gameMode === 'guess' && !isRevealed ? (
+              <div className="py-2">
+                <button
+                  onClick={() => setIsRevealed(true)}
+                  className="px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-2xl border border-indigo-200 text-sm transition-all"
                 >
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                    <div className="flex items-center gap-2">
-                      <Award className="w-4 h-4 text-emerald-600" />
-                      <span className="text-xs font-extrabold text-slate-800">
-                        Hasil Penilaian Pelafalan
-                      </span>
-                    </div>
-
-                    <span
-                      className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${pronunciationResult.statusColor}`}
-                    >
-                      {pronunciationResult.statusLabel} ({pronunciationResult.accuracyScore}%)
-                    </span>
-                  </div>
-
-                  <p className="text-xs font-semibold text-slate-700">
-                    {pronunciationResult.feedbackMessage}
-                  </p>
-
-                  <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 font-medium">Kosakata Target:</span>
-                      <span className="font-extrabold text-emerald-700">
-                        "{activeCard.word}" ({activeCard.phonetic})
-                      </span>
-                    </div>
-                    {pronunciationResult.spokenText && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-medium">Suara Kamu:</span>
-                        <span className="font-bold text-slate-800 italic">
-                          "{pronunciationResult.spokenText}"
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-[11px] text-slate-500 bg-sky-50 border border-sky-100 p-2 rounded-xl font-medium">
-                    💡 <strong>Tips Artikulasi:</strong> {pronunciationResult.phoneticTip}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Guess Result Box */}
-              {guessResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`w-full p-3.5 rounded-2xl border text-left space-y-1.5 ${
-                    guessResult.isCorrect
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                      : 'bg-amber-50 border-amber-200 text-amber-900'
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold text-xs">
-                    <span>{guessResult.isCorrect ? '🎉 Tebakan Tepat!' : '🤔 Coba Lagi'}</span>
-                    <span className="text-[10px] font-extrabold bg-white/80 px-2 py-0.5 rounded-md">
-                      Akurasi Pelafalan: {guessResult.accuracyScore}%
-                    </span>
-                  </div>
-                  <p className="text-xs font-semibold">{guessResult.message}</p>
-                  <p className="text-[11px] opacity-80">{guessResult.phoneticTip}</p>
-                </motion.div>
-              )}
-
-              {/* Mic Error */}
-              {micError && (
-                <div className="w-full p-2.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-                  {micError}
-                </div>
-              )}
-
-              {/* Main Action Buttons */}
-              <div className="w-full pt-1">
-                {gameMode === 'repeat' ? (
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {/* Button 1: Dengarkan */}
-                    <button
-                      onClick={() => handlePlayWordAudio()}
-                      className="bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-4 rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm active:scale-95"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      <span>Dengarkan 🔊</span>
-                    </button>
-
-                    {/* Button 2: Ulangi / Tirukan */}
-                    <button
-                      onClick={isListening ? handleStopMic : handleStartMic}
-                      className={`font-bold py-3 px-4 rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm active:scale-95 text-white ${
-                        isListening
-                          ? 'bg-red-500 hover:bg-red-600'
-                          : 'bg-emerald-500 hover:bg-emerald-600'
-                      }`}
-                    >
-                      {isListening ? (
-                        <>
-                          <MicOff className="w-4 h-4" />
-                          <span>Hentikan</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="w-4 h-4" />
-                          <span>Ulangi / Tirukan 🎙️</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  /* Tebak Kata Mode: NO Dengarkan button! Single Full-Width Answer Button */
-                  <button
-                    onClick={isListening ? handleStopMic : handleStartMic}
-                    className={`w-full font-bold py-3.5 px-4 rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer text-sm sm:text-base active:scale-95 text-white ${
-                      isListening
-                        ? 'bg-red-500 hover:bg-red-600'
-                        : 'bg-amber-500 hover:bg-amber-600'
-                    }`}
-                  >
-                    {isListening ? (
-                      <>
-                        <MicOff className="w-5 h-5" />
-                        <span>Hentikan 🛑</span>
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="w-5 h-5" />
-                        <span>Jawab Suara / Ucapkan 🎙️</span>
-                      </>
-                    )}
-                  </button>
-                )}
+                  Buka Jawaban 👁️
+                </button>
               </div>
-            </motion.div>
-          </AnimatePresence>
+            ) : (
+              <>
+                <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight flex items-center justify-center gap-2">
+                  {activeCard.word}
+                  <button
+                    onClick={() => handlePlayWordAudio()}
+                    className={`p-2 rounded-full hover:bg-slate-100 transition-colors text-amber-600 ${
+                      isPlayingAudio ? 'animate-bounce' : ''
+                    }`}
+                    title="Putar Suara"
+                  >
+                    <Volume2 className="w-6 h-6" />
+                  </button>
+                </h2>
+                {activeCard.phonetic && (
+                  <p className="text-sm font-semibold text-amber-700/90 mt-1 font-mono bg-amber-50 inline-block px-3 py-0.5 rounded-full border border-amber-200/60">
+                    {activeCard.phonetic}
+                  </p>
+                )}
+                <p className="text-lg font-bold text-slate-600 mt-1.5">
+                  {activeCard.translation}
+                </p>
+              </>
+            )}
+          </div>
 
-          {/* Bottom Card Navigation Controls */}
-          <div className="flex items-center justify-between w-full mt-4">
+          {/* Speech Feedback Box */}
+          {pronunciationResult && (
+            <div className={`mt-4 w-full p-4 rounded-2xl border text-sm font-medium ${pronunciationResult.statusColor}`}>
+              <div className="font-bold text-base mb-1">{pronunciationResult.statusLabel}</div>
+              <p>{pronunciationResult.feedbackMessage}</p>
+            </div>
+          )}
+
+          {guessResult && (
+            <div className={`mt-4 w-full p-4 rounded-2xl border text-sm font-medium ${guessResult.isCorrect ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+              <div className="font-bold text-base mb-1">{guessResult.message}</div>
+            </div>
+          )}
+
+          {micError && (
+            <div className="mt-4 w-full p-3 rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
+              {micError}
+            </div>
+          )}
+
+          {/* Bottom Action Controls */}
+          <div className="mt-6 flex items-center justify-center gap-3 w-full">
             <button
               onClick={handlePrevCard}
-              className="bg-white hover:bg-slate-50 text-slate-700 font-bold px-3.5 py-2 rounded-xl border border-slate-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer text-xs"
+              className="p-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+              title="Kartu Sebelumnya"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Sebelumnya</span>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={handleStartSpeech}
+              disabled={isListening}
+              className={`flex-1 max-w-xs py-3.5 px-6 rounded-2xl font-bold text-white shadow-md flex items-center justify-center gap-2 transition-all ${
+                isListening
+                  ? 'bg-rose-500 animate-pulse'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700'
+              }`}
+            >
+              {isListening ? (
+                <>
+                  <MicOff className="w-5 h-5" />
+                  <span>Mendengarkan...</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-5 h-5" />
+                  <span>Ucapkan Kata 🎙️</span>
+                </>
+              )}
             </button>
 
             <button
               onClick={handleRandomCard}
-              className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 cursor-pointer text-xs"
-              title="Acak Kartu"
+              className="p-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+              title="Kartu Acak"
             >
-              <Shuffle className="w-3.5 h-3.5 text-amber-700" />
-              <span className="hidden sm:inline">Acak Kartu</span>
+              <Shuffle className="w-5 h-5" />
             </button>
 
             <button
               onClick={handleNextCard}
-              className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl transition-all flex items-center gap-1 shadow-xs cursor-pointer text-xs"
+              className="p-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white shadow-md transition-colors"
+              title="Kartu Berikutnya"
             >
-              <span>Selanjutnya</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-5 h-5" />
             </button>
           </div>
         </div>
