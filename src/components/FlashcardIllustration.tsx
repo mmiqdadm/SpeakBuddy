@@ -17,83 +17,69 @@ export const FlashcardIllustration: React.FC<FlashcardIllustrationProps> = React
   onImageClick,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [imgError, setImgError] = useState(false);
 
-  const colorGradient = card.color || 'from-emerald-400 to-teal-600';
+  const canPlayAudio = true;
+
+  // Derive gradient color class or default
+  const colorGradient = card.color || 'from-amber-300 to-yellow-500';
 
   return (
     <motion.div
-      whileHover={{ scale: 1.04, y: -4 }}
-      whileTap={{ scale: 0.96 }}
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
       onClick={() => onImageClick?.()}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
-      className="w-56 h-56 sm:w-64 sm:h-64 rounded-3xl relative overflow-hidden my-3 shadow-lg border-4 border-white/90 group flex flex-col items-center justify-center transition-all cursor-pointer hover:shadow-2xl shrink-0 select-none bg-white"
+      className="w-52 h-52 sm:w-60 sm:h-60 rounded-3xl relative overflow-hidden my-2.5 shadow-md border-3 border-white/90 group flex flex-col items-center justify-center transition-all cursor-pointer hover:shadow-xl shrink-0"
     >
-      {/* Dynamic Background Gradient */}
+      {/* Cartoon Vector Layer 1: Vibrant Multi-Tone Gradient Canvas */}
       <div
-        className={`absolute inset-0 bg-gradient-to-tr ${colorGradient} opacity-15 group-hover:opacity-25 transition-opacity duration-300`}
+        className={`absolute inset-0 bg-gradient-to-tr ${colorGradient} opacity-20 group-hover:opacity-30 transition-opacity duration-300`}
       />
 
-      {/* Playful Vector Dots */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#0f172a_1.5px,transparent_1.5px)] [background-size:14px_14px]" />
+      {/* Cartoon Vector Layer 2: Vector Pattern Polka Dots & Rays */}
+      <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#334155_1.5px,transparent_1.5px)] [background-size:14px_14px]" />
 
-      {/* Sunburst Radial Glow */}
+      {/* Vector Layer 3: Dynamic Sunburst Background Accent */}
       <div className="absolute -inset-10 opacity-20 pointer-events-none flex items-center justify-center">
-        <div className="w-80 h-80 rounded-full bg-gradient-to-r from-emerald-200 via-sky-200 to-indigo-200 animate-spin-slow blur-xl" />
+        <div className="w-72 h-72 rounded-full bg-gradient-to-r from-amber-200 via-rose-200 to-indigo-200 animate-spin-slow blur-md" />
       </div>
 
-      {/* Corner Decor Sparkles */}
-      <div className="absolute top-3 left-3 text-amber-500/90 group-hover:text-amber-500 transition-colors z-10 flex items-center gap-1">
+      {/* Corner Sparkle Decor */}
+      <div className="absolute top-3 left-3 text-amber-500/80 group-hover:text-amber-500 transition-colors z-10">
         <Sparkles className="w-4 h-4 animate-pulse" />
       </div>
 
-      {/* Category Tag Badge */}
-      {card.category && (
-        <div className="absolute top-3 right-3 bg-white/80 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide uppercase text-slate-600 border border-slate-200/60 shadow-2xs z-10">
-          {card.category}
-        </div>
-      )}
-
-      {/* Main Illustration Area */}
+      {/* Main Content Area: High-Precision Vector Illustration Subject */}
       <div className="w-full h-full p-4 flex flex-col items-center justify-center relative z-0">
         <motion.div
-          key={card.id}
-          initial={{ scale: 0.7, opacity: 0 }}
+          initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
           className="flex flex-col items-center justify-center text-center"
         >
-          {card.imageUrl && !imgError ? (
-            <div className="relative flex items-center justify-center w-40 h-40">
-              <img
-                src={card.imageUrl}
-                alt={card.word}
-                onError={() => setImgError(true)}
-                className="max-w-full max-h-full object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-          ) : (
-            <div className="relative flex items-center justify-center">
-              <div className="absolute -inset-6 bg-gradient-to-tr from-white/90 via-amber-100/60 to-sky-100/60 rounded-full blur-md group-hover:scale-110 transition-transform duration-300" />
-              <span className="text-8xl sm:text-9xl relative z-10 drop-shadow-xl select-none transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 block filter contrast-125">
-                {card.emoji}
-              </span>
-            </div>
-          )}
+          {/* Vector 3D Child-Friendly Emoji Illustration */}
+          <div className="relative flex items-center justify-center">
+            <div className="absolute -inset-6 bg-gradient-to-tr from-white/90 via-amber-100/60 to-indigo-100/60 rounded-full blur-md group-hover:scale-110 transition-transform duration-300" />
+            <span className="text-8xl sm:text-9xl relative z-10 drop-shadow-xl select-none transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 block">
+              {card.emoji}
+            </span>
+          </div>
         </motion.div>
       </div>
 
-      {/* Interactive Sound Trigger */}
-      <motion.div
-        animate={{ scale: isHovered ? 1.12 : 1 }}
-        className="absolute bottom-3 right-3 bg-emerald-500 hover:bg-emerald-600 text-white p-2.5 rounded-2xl shadow-md border border-emerald-400/60 flex items-center justify-center z-10 transition-colors"
-        title="Dengarkan Pengucapan"
+      {/* Audio Play Indicator */}
+      <motion.span
+        animate={{ scale: isHovered ? 1.15 : 1 }}
+        className="absolute bottom-3 right-3 bg-emerald-500 hover:bg-emerald-600 text-white p-2.5 rounded-2xl shadow-md border border-emerald-400/50 flex items-center justify-center z-10"
+        title="Dengarkan Suara"
       >
-        <Volume2 className="w-5 h-5" />
-      </motion.div>
+        <Volume2 className="w-4.5 h-4.5" />
+      </motion.span>
     </motion.div>
   );
 });
 
 FlashcardIllustration.displayName = 'FlashcardIllustration';
+
+

@@ -3,7 +3,7 @@ import { ChatMessage, DifficultyLevel, Topic, UserStats, VoiceSpeed, VoiceProfil
 import { DEFAULT_TOPICS } from './data/defaultTopics';
 import { VOICE_PROFILES } from './data/voiceProfiles';
 import { sendChatTurn, fetchRandomTopic } from './services/api';
-import { speakText, stopSpeaking, preloadVoices } from './services/speech';
+import { speakText, stopSpeaking } from './services/speech';
 
 import { Navbar } from './components/Navbar';
 import { TopicBanner } from './components/TopicBanner';
@@ -31,11 +31,6 @@ export default function App() {
   const [currentTopic, setCurrentTopic] = useState<Topic>(getRandomTopic);
   const [customTopics, setCustomTopics] = useState<Topic[]>([]);
   const [isLoadingNewTopic, setIsLoadingNewTopic] = useState(false);
-
-  // Preload speech voices on mount
-  useEffect(() => {
-    preloadVoices();
-  }, []);
 
   // Chat Messages State initialized with Buddy initial greeting
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
@@ -180,31 +175,16 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Error handling chat turn:', err);
-      const isApiKeyErr = err?.message?.includes('API key') || err?.message?.includes('INVALID_ARGUMENT');
-      const isRateLimitErr = err?.message?.includes('Rate limit') || err?.message?.includes('429');
-
-      let errorText = "Oops! Something went wrong on my end. Could you say that again? 😊";
-      let errorIndonesian = "Waduh, terjadi kendala teknis singkat. Boleh coba kirim ulang pesannya? 😊";
-
-      if (isApiKeyErr) {
-        errorText = "⚠️ GEMINI_API_KEY is not configured or invalid. Please add a valid API key in your .env or Vercel Environment Variables.";
-        errorIndonesian = "⚠️ GEMINI_API_KEY belum dikonfigurasi atau tidak valid. Silakan pasang API key di file .env atau Vercel Environment Variables.";
-      } else if (isRateLimitErr) {
-        errorText = "☕ Buddy is taking a 10-second breather due to high activity! Try sending your message again in a moment. ⭐";
-        errorIndonesian = "☕ Buddy sedang istirahat sejenak 10 detik! Coba kirim ulang pesanmu sesaat lagi. ⭐";
-      }
-
+      // Fallback response if offline or API error
       const fallbackMsg: ChatMessage = {
         id: `buddy-error-${Date.now()}`,
         sender: 'buddy',
-        text: errorText,
+        text: "That sounds wonderful! Let's keep practicing! What else would you like to share? 😊",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        translationIndonesian: errorIndonesian,
+        translationIndonesian: "Itu terdengar hebat! Mari terus berlatih! Apa lagi yang ingin kamu ceritakan? 😊",
       };
       setMessages((prev) => [...prev, fallbackMsg]);
-      if (!isApiKeyErr) {
-        speakText(fallbackMsg.text, voiceSpeed, selectedVoice);
-      }
+      speakText(fallbackMsg.text, voiceSpeed, selectedVoice);
     } finally {
       setIsBuddyThinking(false);
     }

@@ -22,33 +22,6 @@ const ai = new GoogleGenAI({
   },
 });
 
-// Primary default model gemini-1.5-flash (Exact model used in Google AI Studio)
-async function generateGeminiContent(params: {
-  contents: any;
-  config?: any;
-}) {
-  try {
-    return await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      ...params,
-    });
-  } catch (err: any) {
-    if (err?.status === 404 || err?.message?.includes('404')) {
-      return await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        ...params,
-      });
-    }
-    throw err;
-  }
-}
-
-// In-Memory Translation Cache
-const translationCache = new Map<string, any>();
-
-// In-Memory Generated Topics Pool
-const topicCache = new Map<string, any[]>();
-
 // Endpoint: Process Chat Turn with Scoring and Evaluation
 app.post('/api/chat-turn', async (req, res) => {
   try {
@@ -59,41 +32,47 @@ app.post('/api/chat-turn', async (req, res) => {
     }
 
     const difficultyPrompts: Record<string, string> = {
-      starter: 'Use super simple, very short (2-5 words) A0-A1 English. Be extremely warm, cheerful, kid-friendly. Include parenthetical Indonesian translations for key tricky words.',
-      beginner: 'Use simple, clear A1-A2 English with short sentences. Be enthusiastic, patient, and friendly. Ask simple follow-up questions.',
-      intermediate: 'Use natural everyday B1 English with relaxed idioms, fun commentary, and moderate vocabulary. Keep dialogue flowing like real friends.',
-      upper_intermediate: 'Use fluent B2 English with expressive phrasal verbs, humor, and rich natural expressions.',
-      advanced: 'Use native-level C1-C2 idiomatic English with nuanced vocabulary, witty commentary, and deep engaging questions.',
+      starter: 'Use super simple, very short (2-4 words) English sentences (A0-A1 level). Be extremely cheerful, patient, kid-friendly, and supportive! Provide parenthetical Indonesian translations for key words so absolute beginners and kids easily understand.',
+      beginner: 'Use simple, clear English with short sentences (A1-A2 level). Be extremely cheerful, patient, and encouraging! Include gentle hints when useful.',
+      intermediate: 'Use natural everyday English (B1 level) with friendly conversational idioms and moderate vocabulary. Keep the flow relaxed and engaging.',
+      upper_intermediate: 'Use fluent, expressive, idiomatic English (B2 level) with natural phrasal verbs, richer vocabulary, and smooth transitions.',
+      advanced: 'Use native-level, expressive, nuanced, and fast-paced idiomatic English (C1-C2 level) with sophisticated vocabulary.',
     };
 
     const targetDifficultyInstruction = difficultyPrompts[difficulty] || difficultyPrompts.beginner;
 
-    // Natural Best-Friend Persona Prompt (Endless Flowing Conversation)
     const systemInstruction = `
-You are "Buddy", a warm, witty, and empathetic best friend having a casual English conversation with the user.
+You are "Buddy", a warm, empathetic, and cheerful AI conversational language partner designed to help users (including children and beginners) practice speaking English casually.
 
-CONVERSATIONAL RULES FOR REAL FRIENDLIKE CHAT:
-1. TALK LIKE A REAL CLOSE FRIEND: Never sound like a teacher, robot, or language instructor. React authentically to what the user says with emotion, humor, or shared experience (e.g. "Oh no way!", "Haha I completely agree!", "Wait, really? That's awesome!").
-2. ENDLESS CONVERSATION FLOW: Always connect your reply directly to the exact details the user mentioned, share a mini thought or opinion of your own, and end with an intriguing, natural open-ended question that makes the user want to reply immediately.
-3. NEVER USE ROBOTIC TEMPLATES: Avoid generic repetitive phrases like "That sounds wonderful! Let's keep practicing!" or "What else would you like to share?". Be spontaneous, creative, and genuine.
-4. TARGET DIFFICULTY: ${targetDifficultyInstruction}
-5. CURRENT TOPIC: ${topic?.title || 'Casual Chat'} (${topic?.description || 'Friendly chat'}).
-6. INDONESIAN HELP & TRANSLATION: If the user asks in Indonesian or isIndonesianHelp=true, reply kindly in Indonesian first ("Dalam bahasa Inggris, kamu bisa bilang: '...'"), explain simply, then ask a friendly English question to continue.
-7. REAL-TIME EVALUATION: Evaluate "${userInput}". Give estimated scores (0-100), badge label, constructive feedback, and gentle corrections explained in friendly, polite Indonesian.
+CORE RULES FOR CONVERSATION:
+1. TARGET DIFFICULTY LEVEL: ${targetDifficultyInstruction}
+2. CURRENT CONVERSATION TOPIC: ${topic?.title || 'General Casual Chat'} (${topic?.description || 'Friendly chat'}).
+3. NO SELF-INTRODUCTIONS: NEVER start messages with repetitive intros like "Hello, my name is Buddy" or "Halo! Namaku Buddy...". Directly answer and jump right into natural, friendly conversation!
+4. FLOW FIRST PRINCIPLE: If the user speaks broken English or makes grammar errors, DO NOT break the conversational flow or criticize them in your reply. Respond smoothly and naturally as a true friend would, continuing the scenario.
+5. INDONESIAN ASSISTANCE & TRANSLATION:
+   - If the user asks a question in Indonesian (e.g. "gimana ngomong...", "artinya apa...", "bahasa inggrisnya..."), or if isIndonesianHelp is true:
+     - Answer their question kindly in friendly Indonesian first ("Dalam bahasa Inggris, kamu bisa bilang: '...'"), then pronounce/explain it in English, and follow up with a friendly question in English to keep practice going!
+6. EVALUATION & SCORING MANDATE:
+   - Evaluated sentence: "${userInput}".
+   - Provide an automatic real-time evaluation with estimated Pronunciation, Grammar, and Fluency scores (0 to 100).
+   - If user input is in Indonesian asking for translation, score their engagement high (e.g. 90+) and encourage them for asking!
+   - Provide gentle, constructive corrections in the evaluation field without being punitive.
+   - For corrections, write explanations in simple, polite Indonesian so beginners understand easily!
 `;
 
     const promptText = `
-Recent Chat History:
+Recent Conversation History:
 ${history.slice(-6).map((h: any) => `${h.sender === 'user' ? 'User' : 'Buddy'}: ${h.text}`).join('\n')}
 
 Latest User Input: "${userInput}"
-Difficulty Level: ${difficulty}
-Is Indonesian Help Request: ${isIndonesianHelp}
+Difficulty: ${difficulty}
+Is Indonesian Translation/Help Query: ${isIndonesianHelp}
 
 Generates response strictly matching JSON schema.
 `;
 
-    const response = await generateGeminiContent({
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
       contents: promptText,
       config: {
         systemInstruction,
@@ -103,22 +82,22 @@ Generates response strictly matching JSON schema.
           properties: {
             reply: {
               type: Type.STRING,
-              description: 'Buddy natural best-friend response in English (or friendly Indonesian explanation if asked for help).',
+              description: 'Buddy natural conversational response in English (or friendly Indonesian explanation if user asked for translation).',
             },
             replyIndonesianTranslation: {
               type: Type.STRING,
-              description: 'Indonesian summary/translation of Buddy reply.',
+              description: 'Indonesian translation/summary of Buddy reply so beginners and kids easily understand.',
             },
             evaluation: {
               type: Type.OBJECT,
               properties: {
-                pronunciationScore: { type: Type.INTEGER, description: 'Estimated score 0-100.' },
-                grammarScore: { type: Type.INTEGER, description: 'Estimated score 0-100.' },
-                fluencyScore: { type: Type.INTEGER, description: 'Estimated score 0-100.' },
-                overallScore: { type: Type.INTEGER, description: 'Estimated overall score 0-100.' },
-                badgeLabel: { type: Type.STRING, description: 'Short badge e.g. "⭐ Super Natural!", "🌟 Great Flow!"' },
-                feedbackSummary: { type: Type.STRING },
-                feedbackIndonesian: { type: Type.STRING },
+                pronunciationScore: { type: Type.INTEGER, description: 'Estimated pronunciation clarity score (0-100).' },
+                grammarScore: { type: Type.INTEGER, description: 'Grammar correctness score (0-100).' },
+                fluencyScore: { type: Type.INTEGER, description: 'Natural expression and fluency score (0-100).' },
+                overallScore: { type: Type.INTEGER, description: 'Combined overall score (0-100).' },
+                badgeLabel: { type: Type.STRING, description: 'Short celebratory badge, e.g., "⭐ Super Natural!", "🌟 Great Effort!"' },
+                feedbackSummary: { type: Type.STRING, description: 'Short positive feedback in English.' },
+                feedbackIndonesian: { type: Type.STRING, description: 'Short encouraging feedback in Indonesian.' },
                 corrections: {
                   type: Type.ARRAY,
                   items: {
@@ -135,6 +114,7 @@ Generates response strictly matching JSON schema.
                 betterAlternatives: {
                   type: Type.ARRAY,
                   items: { type: Type.STRING },
+                  description: '1 or 2 alternative natural phrasing options.',
                 },
                 keyVocabularyUsed: {
                   type: Type.ARRAY,
@@ -143,7 +123,10 @@ Generates response strictly matching JSON schema.
               },
               required: ['pronunciationScore', 'grammarScore', 'fluencyScore', 'overallScore', 'badgeLabel', 'feedbackSummary', 'feedbackIndonesian', 'corrections', 'betterAlternatives'],
             },
-            isTranslationHelpRequest: { type: Type.BOOLEAN },
+            isTranslationHelpRequest: {
+              type: Type.BOOLEAN,
+              description: 'True if user asked for translation/help in Indonesian.',
+            },
           },
           required: ['reply', 'replyIndonesianTranslation', 'evaluation'],
         },
@@ -156,16 +139,9 @@ Generates response strictly matching JSON schema.
     return res.json(parsedData);
   } catch (err: any) {
     console.error('Error in /api/chat-turn:', err);
-
-    if (err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED')) {
-      return res.status(429).json({
-        error: 'Rate limit reached. Please wait a few seconds before sending another message.',
-      });
-    }
-
     return res.status(500).json({
-      error: err?.message || 'Failed to process conversation turn.',
-      details: err?.message || 'Unknown error',
+      error: 'Failed to process conversation turn.',
+      details: err.message || 'Unknown error',
     });
   }
 });
@@ -194,13 +170,22 @@ app.post('/api/generate-topic', async (req, res) => {
     const randomSeed = Math.floor(Math.random() * 1000000);
 
     const prompt = `
-Generate a fresh, engaging everyday conversation topic for English learners.
-Seed: ${randomSeed}, Difficulty: ${difficulty}, Category: ${randomCategory}.
-REQUIREMENTS: Casual life, NO roleplay scripts, warm intriguing initial message from Buddy asking a friendly question without self-introduction.
-Strict JSON.
+Generate a completely fresh, unique, and engaging everyday conversation topic for English learners.
+Random seed: ${randomSeed}.
+Target Difficulty Level: ${difficulty}.
+Suggested Angle Category: ${randomCategory}.
+
+REQUIREMENTS:
+1. Topic must be realistic, everyday casual life (e.g., favorite snacks, opinions on cats vs dogs, morning routine, favorite shoes/bag, funny stories, coffee/tea preferences, weekend habits).
+2. DO NOT use rigid roleplays or artificial script scenarios.
+3. The initialMessage MUST BE an intriguing, warm question that directly engages the user in English.
+4. CRITICAL: The initialMessage MUST NOT contain self-introductions like "Hello, my name is Buddy" or "Halo! Namaku Buddy...". Jump straight into the conversation question!
+
+Return strict JSON matching schema.
 `;
 
-    const response = await generateGeminiContent({
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -208,13 +193,13 @@ Strict JSON.
           type: Type.OBJECT,
           properties: {
             id: { type: Type.STRING },
-            title: { type: Type.STRING },
-            titleIndonesian: { type: Type.STRING },
-            category: { type: Type.STRING },
-            icon: { type: Type.STRING },
-            description: { type: Type.STRING },
-            starterPrompt: { type: Type.STRING },
-            initialMessage: { type: Type.STRING },
+            title: { type: Type.STRING, description: 'English title with emoji, e.g. Pizza Party 🍕' },
+            titleIndonesian: { type: Type.STRING, description: 'Indonesian title, e.g. Pesta Pizza' },
+            category: { type: Type.STRING, description: 'Topic category' },
+            icon: { type: Type.STRING, description: 'Icon identifier name' },
+            description: { type: Type.STRING, description: 'Fun description' },
+            starterPrompt: { type: Type.STRING, description: 'System persona prompt for Buddy' },
+            initialMessage: { type: Type.STRING, description: 'Buddy warm initial greeting' },
             keyVocabulary: {
               type: Type.ARRAY,
               items: {
@@ -238,20 +223,9 @@ Strict JSON.
     });
 
     const parsedTopic = JSON.parse(response.text || '{}');
-
-    if (!topicCache.has(difficulty)) topicCache.set(difficulty, []);
-    const list = topicCache.get(difficulty)!;
-    list.push(parsedTopic);
-
     return res.json(parsedTopic);
   } catch (err: any) {
     console.error('Error in /api/generate-topic:', err);
-    const cachedList = topicCache.get(req.body?.difficulty || 'beginner') || [];
-    if (cachedList.length > 0) {
-      const pick = cachedList[Math.floor(Math.random() * cachedList.length)];
-      return res.json(pick);
-    }
-
     return res.status(500).json({ error: 'Failed to generate random topic.' });
   }
 });
@@ -265,44 +239,33 @@ app.post('/api/translate-help', async (req, res) => {
       return res.status(400).json({ error: 'Indonesian text is required.' });
     }
 
-    const cacheKey = (textIndonesian as string).toLowerCase().trim();
-    if (translationCache.has(cacheKey)) {
-      return res.json(translationCache.get(cacheKey));
-    }
-
     const prompt = `
-Translate and explain in English: "${textIndonesian}".
+The user is learning English and wants to know how to express this Indonesian thought in English: "${textIndonesian}".
 Topic context: "${contextTopic}".
-Provide primary natural English translation, casual alternative, phonetic guide, and brief Indonesian tip.
+
+Provide 1-2 natural, polite English translations, phonetic pronunciation guide for difficult words, and simple usage tips in Indonesian.
 Return JSON.
 `;
 
-    const response = await generateGeminiContent({
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            primaryEnglish: { type: Type.STRING },
-            alternativeEnglish: { type: Type.STRING },
-            pronunciationGuide: { type: Type.STRING },
-            explanationIndonesian: { type: Type.STRING },
+            primaryEnglish: { type: Type.STRING, description: 'Best natural English sentence' },
+            alternativeEnglish: { type: Type.STRING, description: 'Casual/Alternative English sentence' },
+            pronunciationGuide: { type: Type.STRING, description: 'How to pronounce key words simply' },
+            explanationIndonesian: { type: Type.STRING, description: 'Brief tip in Indonesian' },
           },
           required: ['primaryEnglish', 'explanationIndonesian'],
         },
       },
     });
 
-    const resultData = JSON.parse(response.text || '{}');
-
-    if (translationCache.size > 200) {
-      const firstKey = translationCache.keys().next().value;
-      if (firstKey) translationCache.delete(firstKey);
-    }
-    translationCache.set(cacheKey, resultData);
-
-    return res.json(resultData);
+    return res.json(JSON.parse(response.text || '{}'));
   } catch (err: any) {
     console.error('Error in /api/translate-help:', err);
     return res.status(500).json({ error: 'Failed to fetch translation help.' });
