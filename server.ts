@@ -15,12 +15,46 @@ app.use(express.json());
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({
   apiKey: apiKey || '',
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
 });
+
+// Helper for Automatic Model Fallback
+async function generateGeminiContent(params: {
+  contents: any;
+  config?: any;
+}) {
+  const candidateModels = [
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-flash-latest',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+  ];
+
+  let lastError: any = null;
+
+  for (const model of candidateModels) {
+    try {
+      return await ai.models.generateContent({
+        model,
+        ...params,
+      });
+    } catch (err: any) {
+      lastError = err;
+      if (
+        err?.status === 404 ||
+        err?.message?.includes('404') ||
+        err?.message?.includes('not found') ||
+        err?.message?.includes('NOT_FOUND')
+      ) {
+        console.warn(`Model ${model} returned 404, trying fallback...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError;
+}
 
 // Endpoint: Process Chat Turn with Scoring and Evaluation
 app.post('/api/chat-turn', async (req, res) => {
@@ -42,7 +76,7 @@ app.post('/api/chat-turn', async (req, res) => {
     const targetDifficultyInstruction = difficultyPrompts[difficulty] || difficultyPrompts.beginner;
 
     const systemInstruction = `
-You are "Buddy", a warm, empathetic, and cheerful AI conversational language partner designed to help users (including children and beginners) practice speaking English casually.
+You are "Buddy", a warm, empathetic, witty, and cheerful AI conversational language partner designed to help users practice speaking English casually like close friends.
 
 CORE RULES FOR CONVERSATION:
 1. TARGET DIFFICULTY LEVEL: ${targetDifficultyInstruction}
@@ -71,8 +105,7 @@ Is Indonesian Translation/Help Query: ${isIndonesianHelp}
 Generates response strictly matching JSON schema.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+    const response = await generateGeminiContent({
       contents: promptText,
       config: {
         systemInstruction,
@@ -140,8 +173,8 @@ Generates response strictly matching JSON schema.
   } catch (err: any) {
     console.error('Error in /api/chat-turn:', err);
     return res.status(500).json({
-      error: 'Failed to process conversation turn.',
-      details: err.message || 'Unknown error',
+      error: err?.message || 'Failed to process conversation turn.',
+      details: err?.message || 'Unknown error',
     });
   }
 });
@@ -184,8 +217,7 @@ REQUIREMENTS:
 Return strict JSON matching schema.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+    const response = await generateGeminiContent({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -247,8 +279,7 @@ Provide 1-2 natural, polite English translations, phonetic pronunciation guide f
 Return JSON.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+    const response = await generateGeminiContent({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

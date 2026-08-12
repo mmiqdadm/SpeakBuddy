@@ -175,13 +175,26 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Error handling chat turn:', err);
-      // Fallback response if offline or API error
+      const isKeyErr = err?.message?.includes('API key') || err?.message?.includes('INVALID_ARGUMENT') || err?.message?.includes('NOT_FOUND');
+      const isRateLimit = err?.message?.includes('Rate limit') || err?.message?.includes('429');
+
+      let errorText = "Oops! Something went wrong connecting to Gemini. Please try again.";
+      let errorIndonesian = "Waduh, koneksi ke AI Gemini mengalami kendala. Boleh coba kirim ulang pesannya?";
+
+      if (isKeyErr) {
+        errorText = "⚠️ GEMINI_API_KEY is not configured or invalid in your .env file.";
+        errorIndonesian = "⚠️ GEMINI_API_KEY belum dikonfigurasi atau tidak valid di file .env Anda.";
+      } else if (isRateLimit) {
+        errorText = "⏳ Free limit reached. Please wait a few seconds before sending another message.";
+        errorIndonesian = "⏳ Batas pesan tercapai. Mohon tunggu beberapa detik sebelum mengirim lagi.";
+      }
+
       const fallbackMsg: ChatMessage = {
         id: `buddy-error-${Date.now()}`,
         sender: 'buddy',
-        text: "That sounds wonderful! Let's keep practicing! What else would you like to share? 😊",
+        text: errorText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        translationIndonesian: "Itu terdengar hebat! Mari terus berlatih! Apa lagi yang ingin kamu ceritakan? 😊",
+        translationIndonesian: errorIndonesian,
       };
       setMessages((prev) => [...prev, fallbackMsg]);
       speakText(fallbackMsg.text, voiceSpeed, selectedVoice);
